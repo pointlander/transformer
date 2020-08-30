@@ -472,7 +472,7 @@ ckpt_manager = tf.train.CheckpointManager(ckpt, checkpoint_path, max_to_keep=5)
 
 # if a checkpoint exists, restore the latest checkpoint.
 if ckpt_manager.latest_checkpoint:
-  ckpt.restore(ckpt_manager.latest_checkpoint)
+  ckpt.restore(ckpt_manager.latest_checkpoint).expect_partial()
   print ('Latest checkpoint restored!!')
 
 # The @tf.function trace-compiles train_step into a TF graph for faster
