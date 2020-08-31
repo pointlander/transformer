@@ -311,8 +311,8 @@ def create_masks(inp, tar):
 
   return enc_padding_mask, combined_mask, dec_padding_mask
 
-def evaluate(inp_sentence, transformer, tokenizer_pt, tokenizer_en):
-  start_token = [tokenizer_pt.vocab_size]
+def evaluate(language, inp_sentence, transformer, tokenizer_pt, tokenizer_en):
+  start_token = [tokenizer_pt.vocab_size] + [language]
   end_token = [tokenizer_pt.vocab_size + 1]
 
   # inp sentence is portuguese, hence adding the start and end token
@@ -384,8 +384,8 @@ def plot_attention_weights(attention, sentence, result, layer):
   plt.tight_layout()
   plt.show()
 
-def translate(sentence, transformer, tokenizer_pt, tokenizer_en, plot=''):
-  result, attention_weights = evaluate(sentence, transformer, tokenizer_pt, tokenizer_en)
+def translate(language, sentence, transformer, tokenizer_pt, tokenizer_en, plot=''):
+  result, attention_weights = evaluate(language, sentence, transformer, tokenizer_pt, tokenizer_en)
 
   predicted_sentence = tokenizer_en.decode([i for i in result
                                             if i < tokenizer_en.vocab_size])
