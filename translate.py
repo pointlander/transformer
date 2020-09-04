@@ -21,26 +21,16 @@ import os.path as path
 
 from transformer import *
 
-examples, metadata = tfds.load('ted_hrlr_translate/pt_to_en', with_info=True,
-                               as_supervised=True)
-train_examples, val_examples = examples['train'], examples['validation']
-
-tokenizer = None
-if path.exists('tokenizer.subwords'):
-  print ('loading tokenizer....')
-  tokenizer = tfds.features.text.SubwordTextEncoder.load_from_file('tokenizer')
-else:
-  tokenizer = tfds.features.text.SubwordTextEncoder.build_from_corpus(
-    itertools.chain((en.numpy() for pt, en in train_examples), (pt.numpy() for pt, en in train_examples)), target_vocab_size=4**13)
-  tokenizer.save_to_file('tokenizer')
+tokenizer = getTokenizer(None)
+langs = languages(tokenizer.vocab_size)
 
 num_layers = 4
 d_model = 128
 dff = 512
 num_heads = 8
 
-input_vocab_size = tokenizer.vocab_size + 4
-target_vocab_size = tokenizer.vocab_size + 4
+input_vocab_size = tokenizer.vocab_size + 2 + len(langs)
+target_vocab_size = tokenizer.vocab_size + 2 + len(langs)
 dropout_rate = 0.1
 
 transformer = Transformer(num_layers, d_model, num_heads, dff,
@@ -60,5 +50,5 @@ if ckpt_manager.latest_checkpoint:
   ckpt.restore(ckpt_manager.latest_checkpoint).expect_partial()
   print ('Latest checkpoint restored!!')
 
-translate(tokenizer.vocab_size+2, "este é um problema que temos que resolver.", transformer, tokenizer, tokenizer)
-translate(tokenizer.vocab_size+3, "so this is a problem that we have to solve ourselves.", transformer, tokenizer, tokenizer)
+translate(langs['pt'], langs['en'], "este é um problema que temos que resolver.", transformer, tokenizer)
+translate(langs['en'], langs['pt'], "so this is a problem that we have to solve ourselves.", transformer, tokenizer)

@@ -20,12 +20,10 @@ import itertools
 
 from transformer import *
 
-examples, metadata = tfds.load('ted_hrlr_translate/pt_to_en', with_info=True,
-                               as_supervised=True)
-train_examples, val_examples = examples['train'], examples['validation']
+pairs = getPairs()
+tokenizer = getTokenizer(pairs)
 
-tokenizer = tfds.features.text.SubwordTextEncoder.build_from_corpus(
-    itertools.chain((en.numpy() for pt, en in train_examples), (pt.numpy() for pt, en in train_examples)), target_vocab_size=4**13)
+langs = languages(tokenizer.vocab_size)
 
 sample_string = 'Transformer is awesome.'
 
@@ -40,46 +38,52 @@ assert original_string == sample_string
 for ts in tokenized_string:
   print ('{} ----> {}'.format(ts, tokenizer.decode([ts])))
 
-BUFFER_SIZE = 320000
 BATCH_SIZE = 64
 
-def encode_pt_en(lang1, lang2):
-  lang1 = [tokenizer.vocab_size] + [tokenizer.vocab_size+2] + tokenizer.encode(
+total = 0
+train_dataset = None
+for pair in pairs:
+  def encode_pt_en(lang1, lang2):
+    lang1 = [tokenizer.vocab_size] + [langs[pair.a]] + [langs[pair.b]] + tokenizer.encode(
       lang1.numpy()) + [tokenizer.vocab_size+1]
 
-  lang2 = [tokenizer.vocab_size] + tokenizer.encode(
+    lang2 = [tokenizer.vocab_size] + tokenizer.encode(
       lang2.numpy()) + [tokenizer.vocab_size+1]
 
-  return lang1, lang2
+    return lang1, lang2
+  def tf_encode_pt_en(pt, en):
+    result_pt, result_en = tf.py_function(encode_pt_en, [pt, en], [tf.int64, tf.int64])
+    result_pt.set_shape([None])
+    result_en.set_shape([None])
 
-def tf_encode_pt_en(pt, en):
-  result_pt, result_en = tf.py_function(encode_pt_en, [pt, en], [tf.int64, tf.int64])
-  result_pt.set_shape([None])
-  result_en.set_shape([None])
+    return result_pt, result_en
+  train_dataset_pt_en = pair.train_examples.map(tf_encode_pt_en)
+  total += len(train_dataset_pt_en)
 
-  return result_pt, result_en
-
-train_dataset_pt_en = train_examples.map(tf_encode_pt_en)
-
-def encode_en_pt(lang1, lang2):
-  lang1 = [tokenizer.vocab_size] + [tokenizer.vocab_size+3] + tokenizer.encode(
+  def encode_en_pt(lang1, lang2):
+    lang1 = [tokenizer.vocab_size] + [langs[pair.b]] + [langs[pair.a]] + tokenizer.encode(
       lang1.numpy()) + [tokenizer.vocab_size+1]
 
-  lang2 = [tokenizer.vocab_size] + tokenizer.encode(
+    lang2 = [tokenizer.vocab_size] + tokenizer.encode(
       lang2.numpy()) + [tokenizer.vocab_size+1]
 
-  return lang1, lang2
+    return lang1, lang2
+  def tf_encode_en_pt(pt, en):
+    result_en, result_pt = tf.py_function(encode_en_pt, [en, pt], [tf.int64, tf.int64])
+    result_pt.set_shape([None])
+    result_en.set_shape([None])
 
-def tf_encode_en_pt(pt, en):
-  result_en, result_pt = tf.py_function(encode_en_pt, [en, pt], [tf.int64, tf.int64])
-  result_pt.set_shape([None])
-  result_en.set_shape([None])
+    return result_en, result_pt
+  train_dataset_en_pt = pair.train_examples.map(tf_encode_en_pt)
+  total += len(train_dataset_en_pt)
 
-  return result_en, result_pt
+  if train_dataset:
+      train_dataset = train_dataset.concatenate(train_dataset_pt_en)
+      train_dataset = train_dataset.concatenate(train_dataset_en_pt)
+  else:
+      train_dataset = train_dataset_pt_en.concatenate(train_dataset_en_pt)
 
-train_dataset_en_pt = train_examples.map(tf_encode_en_pt)
-
-train_dataset = train_dataset_pt_en.concatenate(train_dataset_en_pt)
+print ('total: {}'.format(total))
 
 MAX_LENGTH = 40
 def filter_max_length(x, y, max_length=MAX_LENGTH):
@@ -89,12 +93,49 @@ train_dataset = train_dataset.filter(filter_max_length)
 
 # cache the dataset to memory to get a speedup while reading from it.
 train_dataset = train_dataset.cache()
-train_dataset = train_dataset.shuffle(BUFFER_SIZE).padded_batch(BATCH_SIZE)
+train_dataset = train_dataset.shuffle(total).padded_batch(BATCH_SIZE)
 train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
-val_examples_pt_en = val_examples.map(tf_encode_pt_en)
-val_examples_en_pt = val_examples.map(tf_encode_en_pt)
-val_dataset = val_examples_pt_en.concatenate(val_examples_en_pt)
+val_dataset = None
+for pair in pairs:
+  def encode_pt_en(lang1, lang2):
+    lang1 = [tokenizer.vocab_size] + [langs[pair.a]] + [langs[pair.b]] + tokenizer.encode(
+      lang1.numpy()) + [tokenizer.vocab_size+1]
+
+    lang2 = [tokenizer.vocab_size] + tokenizer.encode(
+      lang2.numpy()) + [tokenizer.vocab_size+1]
+
+    return lang1, lang2
+  def tf_encode_pt_en(pt, en):
+    result_pt, result_en = tf.py_function(encode_pt_en, [pt, en], [tf.int64, tf.int64])
+    result_pt.set_shape([None])
+    result_en.set_shape([None])
+
+    return result_pt, result_en
+  val_examples_pt_en = pair.val_examples.map(tf_encode_pt_en)
+
+  def encode_en_pt(lang1, lang2):
+    lang1 = [tokenizer.vocab_size] + [langs[pair.b]] + [langs[pair.a]] + tokenizer.encode(
+      lang1.numpy()) + [tokenizer.vocab_size+1]
+
+    lang2 = [tokenizer.vocab_size] + tokenizer.encode(
+      lang2.numpy()) + [tokenizer.vocab_size+1]
+
+    return lang1, lang2
+  def tf_encode_en_pt(pt, en):
+    result_en, result_pt = tf.py_function(encode_en_pt, [en, pt], [tf.int64, tf.int64])
+    result_pt.set_shape([None])
+    result_en.set_shape([None])
+
+    return result_en, result_pt
+  val_examples_en_pt = pair.val_examples.map(tf_encode_en_pt)
+
+  if val_dataset:
+      val_dataset = val_dataset.concatenate(train_dataset_pt_en)
+      val_dataset = val_dataset.concatenate(train_dataset_en_pt)
+  else:
+      val_dataset = train_dataset_pt_en.concatenate(train_dataset_en_pt)
+
 val_dataset = val_dataset.filter(filter_max_length).padded_batch(BATCH_SIZE)
 
 pt_batch, en_batch = next(iter(val_dataset))
@@ -220,8 +261,8 @@ d_model = 128
 dff = 512
 num_heads = 8
 
-input_vocab_size = tokenizer.vocab_size + 4
-target_vocab_size = tokenizer.vocab_size + 4
+input_vocab_size = tokenizer.vocab_size + 2 + len(langs)
+target_vocab_size = tokenizer.vocab_size + 2 + len(langs)
 dropout_rate = 0.1
 
 class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
@@ -343,4 +384,4 @@ for epoch in range(EPOCHS):
 
   print ('Time taken for 1 epoch: {} secs\n'.format(time.time() - start))
 
-translate(tokenizer.vocab_size+2, "este é um problema que temos que resolver.", transformer, tokenizer, tokenizer)
+translate(langs['pt'], langs['en'], "este é um problema que temos que resolver.", transformer, tokenizer)

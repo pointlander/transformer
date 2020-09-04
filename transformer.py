@@ -10,10 +10,88 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import tensorflow_datasets as tfds
 import tensorflow as tf
 import numpy as np
+import itertools
+import os.path as path
+
+class Pairs:
+    def __init__(self, a, b, file):
+        self.a = a
+        self.b = b
+        self.file = file
+        examples, metadata = tfds.load(file, with_info=True, as_supervised=True)
+        self.metadata = metadata
+        self.train_examples = examples['train']
+        self.val_examples = examples['validation']
+
+def getPairs():
+    pairs = []
+    pairs.append(Pairs('az', 'en', 'ted_hrlr_translate/az_to_en'))
+    pairs.append(Pairs('az_tr', 'en', 'ted_hrlr_translate/aztr_to_en'))
+    pairs.append(Pairs('be', 'en', 'ted_hrlr_translate/be_to_en'))
+    pairs.append(Pairs('be_ru', 'en', 'ted_hrlr_translate/beru_to_en'))
+    pairs.append(Pairs('es', 'pt', 'ted_hrlr_translate/es_to_pt'))
+    pairs.append(Pairs('fr', 'pt', 'ted_hrlr_translate/fr_to_pt'))
+    pairs.append(Pairs('gl', 'en', 'ted_hrlr_translate/gl_to_en'))
+    pairs.append(Pairs('gl_pt', 'en', 'ted_hrlr_translate/glpt_to_en'))
+    pairs.append(Pairs('he', 'pt', 'ted_hrlr_translate/he_to_pt'))
+    pairs.append(Pairs('it', 'pt', 'ted_hrlr_translate/it_to_pt'))
+    pairs.append(Pairs('pt', 'en', 'ted_hrlr_translate/pt_to_en'))
+    pairs.append(Pairs('ru', 'en', 'ted_hrlr_translate/ru_to_en'))
+    pairs.append(Pairs('ru', 'pt', 'ted_hrlr_translate/ru_to_pt'))
+    pairs.append(Pairs('tr', 'en', 'ted_hrlr_translate/tr_to_en'))
+    return pairs
+
+def getTokenizer(pairs):
+    tokenizer = None
+    if path.exists('tokenizer.subwords'):
+      print ('loading tokenizer....')
+      tokenizer = tfds.features.text.SubwordTextEncoder.load_from_file('tokenizer')
+    else:
+      iterables = []
+      for pair in pairs:
+        iterables.append((a.numpy() for a, b in pair.train_examples))
+        iterables.append((b.numpy() for a, b in pair.train_examples))
+      tokenizer = tfds.features.text.SubwordTextEncoder.build_from_corpus(
+        itertools.chain.from_iterable(iterables), target_vocab_size=4**13)
+      tokenizer.save_to_file('tokenizer')
+    return tokenizer
 
 MAX_LENGTH = 40
+
+def languages(tokens):
+    languages = {}
+    tokens += 2
+    languages['en'] = tokens
+    tokens += 1
+    languages['az'] = tokens
+    tokens += 1
+    languages['az_tr'] = tokens
+    tokens += 1
+    languages['be'] = tokens
+    tokens += 1
+    languages['be_ru'] = tokens
+    tokens += 1
+    languages['es'] = tokens
+    tokens += 1
+    languages['pt'] = tokens
+    tokens += 1
+    languages['fr'] = tokens
+    tokens += 1
+    languages['gl'] = tokens
+    tokens += 1
+    languages['gl_pt'] = tokens
+    tokens += 1
+    languages['he'] = tokens
+    tokens += 1
+    languages['it'] = tokens
+    tokens += 1
+    languages['ru'] = tokens
+    tokens += 1
+    languages['tr'] = tokens
+    return languages
 
 def get_angles(pos, i, d_model):
   angle_rates = 1 / np.power(10000, (2 * (i//2)) / np.float32(d_model))
@@ -311,17 +389,17 @@ def create_masks(inp, tar):
 
   return enc_padding_mask, combined_mask, dec_padding_mask
 
-def evaluate(language, inp_sentence, transformer, tokenizer_pt, tokenizer_en):
-  start_token = [tokenizer_pt.vocab_size] + [language]
-  end_token = [tokenizer_pt.vocab_size + 1]
+def evaluate(From, to, inp_sentence, transformer, tokenizer):
+  start_token = [tokenizer.vocab_size] + [From] + [to]
+  end_token = [tokenizer.vocab_size + 1]
 
   # inp sentence is portuguese, hence adding the start and end token
-  inp_sentence = start_token + tokenizer_pt.encode(inp_sentence) + end_token
+  inp_sentence = start_token + tokenizer.encode(inp_sentence) + end_token
   encoder_input = tf.expand_dims(inp_sentence, 0)
 
   # as the target is english, the first word to the transformer should be the
   # english start token.
-  decoder_input = [tokenizer_en.vocab_size]
+  decoder_input = [tokenizer.vocab_size]
   output = tf.expand_dims(decoder_input, 0)
 
   for i in range(MAX_LENGTH):
@@ -342,7 +420,7 @@ def evaluate(language, inp_sentence, transformer, tokenizer_pt, tokenizer_en):
     predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
 
     # return the result if the predicted_id is equal to the end token
-    if predicted_id == tokenizer_en.vocab_size+1:
+    if predicted_id == tokenizer.vocab_size+1:
       return tf.squeeze(output, axis=0), attention_weights
 
     # concatentate the predicted_id to the output which is given to the decoder
@@ -351,10 +429,10 @@ def evaluate(language, inp_sentence, transformer, tokenizer_pt, tokenizer_en):
 
   return tf.squeeze(output, axis=0), attention_weights
 
-def plot_attention_weights(attention, sentence, result, layer):
+def plot_attention_weights(tokenizer, attention, sentence, result, layer):
   fig = plt.figure(figsize=(16, 8))
 
-  sentence = tokenizer_pt.encode(sentence)
+  sentence = tokenizer.encode(sentence)
 
   attention = tf.squeeze(attention[layer], axis=0)
 
@@ -372,11 +450,11 @@ def plot_attention_weights(attention, sentence, result, layer):
     ax.set_ylim(len(result)-1.5, -0.5)
 
     ax.set_xticklabels(
-        ['<start>']+[tokenizer_pt.decode([i]) for i in sentence]+['<end>'],
+        ['<start>']+[tokenizer.decode([i]) for i in sentence]+['<end>'],
         fontdict=fontdict, rotation=90)
 
-    ax.set_yticklabels([tokenizer_en.decode([i]) for i in result
-                        if i < tokenizer_en.vocab_size],
+    ax.set_yticklabels([tokenizer.decode([i]) for i in result
+                        if i < tokenizer.vocab_size],
                        fontdict=fontdict)
 
     ax.set_xlabel('Head {}'.format(head+1))
@@ -384,14 +462,14 @@ def plot_attention_weights(attention, sentence, result, layer):
   plt.tight_layout()
   plt.show()
 
-def translate(language, sentence, transformer, tokenizer_pt, tokenizer_en, plot=''):
-  result, attention_weights = evaluate(language, sentence, transformer, tokenizer_pt, tokenizer_en)
+def translate(From, to, sentence, transformer, tokenizer, plot=''):
+  result, attention_weights = evaluate(From, to, sentence, transformer, tokenizer)
 
-  predicted_sentence = tokenizer_en.decode([i for i in result
-                                            if i < tokenizer_en.vocab_size])
+  predicted_sentence = tokenizer.decode([i for i in result
+                                          if i < tokenizer.vocab_size])
 
   print('Input: {}'.format(sentence))
   print('Predicted translation: {}'.format(predicted_sentence))
 
   if plot:
-    plot_attention_weights(attention_weights, sentence, result, plot)
+    plot_attention_weights(tokenizer, attention_weights, sentence, result, plot)
