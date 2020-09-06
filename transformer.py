@@ -55,7 +55,7 @@ def getTokenizer(pairs):
         iterables.append((a.numpy() for a, b in pair.train_examples))
         iterables.append((b.numpy() for a, b in pair.train_examples))
       tokenizer = tfds.features.text.SubwordTextEncoder.build_from_corpus(
-        itertools.chain.from_iterable(iterables), target_vocab_size=4**13)
+        itertools.chain.from_iterable(iterables), target_vocab_size=2**14)
       tokenizer.save_to_file('tokenizer')
     return tokenizer
 
@@ -63,7 +63,7 @@ MAX_LENGTH = 40
 
 def languages(tokens):
     languages = {}
-    tokens += 2
+    tokens += 1
     languages['en'] = tokens
     tokens += 1
     languages['az'] = tokens
@@ -390,8 +390,8 @@ def create_masks(inp, tar):
   return enc_padding_mask, combined_mask, dec_padding_mask
 
 def evaluate(From, to, inp_sentence, transformer, tokenizer):
-  start_token = [tokenizer.vocab_size] + [From] + [to]
-  end_token = [tokenizer.vocab_size + 1]
+  start_token = [From] + [to]
+  end_token = [tokenizer.vocab_size]
 
   # inp sentence is portuguese, hence adding the start and end token
   inp_sentence = start_token + tokenizer.encode(inp_sentence) + end_token
@@ -399,7 +399,7 @@ def evaluate(From, to, inp_sentence, transformer, tokenizer):
 
   # as the target is english, the first word to the transformer should be the
   # english start token.
-  decoder_input = [tokenizer.vocab_size]
+  decoder_input = [to]
   output = tf.expand_dims(decoder_input, 0)
 
   for i in range(MAX_LENGTH):
@@ -420,7 +420,7 @@ def evaluate(From, to, inp_sentence, transformer, tokenizer):
     predicted_id = tf.cast(tf.argmax(predictions, axis=-1), tf.int32)
 
     # return the result if the predicted_id is equal to the end token
-    if predicted_id == tokenizer.vocab_size+1:
+    if predicted_id == tokenizer.vocab_size:
       return tf.squeeze(output, axis=0), attention_weights
 
     # concatentate the predicted_id to the output which is given to the decoder

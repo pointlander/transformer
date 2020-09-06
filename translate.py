@@ -24,13 +24,13 @@ from transformer import *
 tokenizer = getTokenizer(None)
 langs = languages(tokenizer.vocab_size)
 
-num_layers = 4
-d_model = 128
-dff = 512
-num_heads = 8
+num_layers = 8
+d_model = 256
+dff = 1024
+num_heads = 16
 
-input_vocab_size = tokenizer.vocab_size + 2 + len(langs)
-target_vocab_size = tokenizer.vocab_size + 2 + len(langs)
+input_vocab_size = tokenizer.vocab_size + 1 + len(langs)
+target_vocab_size = tokenizer.vocab_size + 1 + len(langs)
 dropout_rate = 0.1
 
 transformer = Transformer(num_layers, d_model, num_heads, dff,
@@ -51,4 +51,4 @@ if ckpt_manager.latest_checkpoint:
   print ('Latest checkpoint restored!!')
 
 translate(langs['pt'], langs['en'], "este é um problema que temos que resolver.", transformer, tokenizer)
-translate(langs['en'], langs['pt'], "so this is a problem that we have to solve ourselves.", transformer, tokenizer)
+translate(langs['en'], langs['pt'], "we need to solve the problem.", transformer, tokenizer)

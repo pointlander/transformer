@@ -44,11 +44,11 @@ total = 0
 train_dataset = None
 for pair in pairs:
   def encode_pt_en(lang1, lang2):
-    lang1 = [tokenizer.vocab_size] + [langs[pair.a]] + [langs[pair.b]] + tokenizer.encode(
-      lang1.numpy()) + [tokenizer.vocab_size+1]
+    lang1 = [langs[pair.a]] + [langs[pair.b]] + tokenizer.encode(
+      lang1.numpy()) + [tokenizer.vocab_size]
 
-    lang2 = [tokenizer.vocab_size] + tokenizer.encode(
-      lang2.numpy()) + [tokenizer.vocab_size+1]
+    lang2 = [langs[pair.b]] + tokenizer.encode(
+      lang2.numpy()) + [tokenizer.vocab_size]
 
     return lang1, lang2
   def tf_encode_pt_en(pt, en):
@@ -61,11 +61,11 @@ for pair in pairs:
   total += len(train_dataset_pt_en)
 
   def encode_en_pt(lang1, lang2):
-    lang1 = [tokenizer.vocab_size] + [langs[pair.b]] + [langs[pair.a]] + tokenizer.encode(
-      lang1.numpy()) + [tokenizer.vocab_size+1]
+    lang1 = [langs[pair.b]] + [langs[pair.a]] + tokenizer.encode(
+      lang1.numpy()) + [tokenizer.vocab_size]
 
-    lang2 = [tokenizer.vocab_size] + tokenizer.encode(
-      lang2.numpy()) + [tokenizer.vocab_size+1]
+    lang2 = [langs[pair.a]] + tokenizer.encode(
+      lang2.numpy()) + [tokenizer.vocab_size]
 
     return lang1, lang2
   def tf_encode_en_pt(pt, en):
@@ -99,11 +99,11 @@ train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 val_dataset = None
 for pair in pairs:
   def encode_pt_en(lang1, lang2):
-    lang1 = [tokenizer.vocab_size] + [langs[pair.a]] + [langs[pair.b]] + tokenizer.encode(
-      lang1.numpy()) + [tokenizer.vocab_size+1]
+    lang1 = [langs[pair.a]] + [langs[pair.b]] + tokenizer.encode(
+      lang1.numpy()) + [tokenizer.vocab_size]
 
-    lang2 = [tokenizer.vocab_size] + tokenizer.encode(
-      lang2.numpy()) + [tokenizer.vocab_size+1]
+    lang2 = [langs[pair.b]] + tokenizer.encode(
+      lang2.numpy()) + [tokenizer.vocab_size]
 
     return lang1, lang2
   def tf_encode_pt_en(pt, en):
@@ -115,11 +115,11 @@ for pair in pairs:
   val_examples_pt_en = pair.val_examples.map(tf_encode_pt_en)
 
   def encode_en_pt(lang1, lang2):
-    lang1 = [tokenizer.vocab_size] + [langs[pair.b]] + [langs[pair.a]] + tokenizer.encode(
-      lang1.numpy()) + [tokenizer.vocab_size+1]
+    lang1 = [langs[pair.b]] + [langs[pair.a]] + tokenizer.encode(
+      lang1.numpy()) + [tokenizer.vocab_size]
 
-    lang2 = [tokenizer.vocab_size] + tokenizer.encode(
-      lang2.numpy()) + [tokenizer.vocab_size+1]
+    lang2 =  [langs[pair.a]] + tokenizer.encode(
+      lang2.numpy()) + [tokenizer.vocab_size]
 
     return lang1, lang2
   def tf_encode_en_pt(pt, en):
@@ -256,13 +256,13 @@ fn_out, _ = sample_transformer(temp_input, temp_target, training=False,
 
 fn_out.shape  # (batch_size, tar_seq_len, target_vocab_size)
 
-num_layers = 4
-d_model = 128
-dff = 512
-num_heads = 8
+num_layers = 8
+d_model = 256
+dff = 1024
+num_heads = 16
 
-input_vocab_size = tokenizer.vocab_size + 2 + len(langs)
-target_vocab_size = tokenizer.vocab_size + 2 + len(langs)
+input_vocab_size = tokenizer.vocab_size + 1 + len(langs)
+target_vocab_size = tokenizer.vocab_size + 1 + len(langs)
 dropout_rate = 0.1
 
 class CustomSchedule(tf.keras.optimizers.schedules.LearningRateSchedule):
@@ -373,10 +373,8 @@ for epoch in range(EPOCHS):
       print ('Epoch {} Batch {} Loss {:.4f} Accuracy {:.4f}'.format(
           epoch + 1, batch, train_loss.result(), train_accuracy.result()))
 
-  if (epoch + 1) % 5 == 0:
-    ckpt_save_path = ckpt_manager.save()
-    print ('Saving checkpoint for epoch {} at {}'.format(epoch+1,
-                                                         ckpt_save_path))
+  ckpt_save_path = ckpt_manager.save()
+  print ('Saving checkpoint for epoch {} at {}'.format(epoch+1, ckpt_save_path))
 
   print ('Epoch {} Loss {:.4f} Accuracy {:.4f}'.format(epoch + 1,
                                                 train_loss.result(),
