@@ -40,9 +40,7 @@ for ts in tokenized_string:
 
 BATCH_SIZE = 64
 
-total = 0
-train_dataset = None
-for pair in pairs:
+def get_tf_encode_pt_en(pair):
   def encode_pt_en(lang1, lang2):
     lang1 = [langs[pair.a]] + [langs[pair.b]] + tokenizer.encode(
       lang1.numpy()) + [tokenizer.vocab_size]
@@ -57,9 +55,9 @@ for pair in pairs:
     result_en.set_shape([None])
 
     return result_pt, result_en
-  train_dataset_pt_en = pair.train_examples.map(tf_encode_pt_en)
-  total += len(train_dataset_pt_en)
+  return tf_encode_pt_en
 
+def get_tf_encode_en_pt(pair):
   def encode_en_pt(lang1, lang2):
     lang1 = [langs[pair.b]] + [langs[pair.a]] + tokenizer.encode(
       lang1.numpy()) + [tokenizer.vocab_size]
@@ -74,7 +72,15 @@ for pair in pairs:
     result_en.set_shape([None])
 
     return result_en, result_pt
-  train_dataset_en_pt = pair.train_examples.map(tf_encode_en_pt)
+  return tf_encode_en_pt
+
+total = 0
+train_dataset = None
+for pair in pairs:
+  train_dataset_pt_en = pair.train_examples.map(get_tf_encode_pt_en(pair))
+  total += len(train_dataset_pt_en)
+
+  train_dataset_en_pt = pair.train_examples.map(get_tf_encode_en_pt(pair))
   total += len(train_dataset_en_pt)
 
   if train_dataset:
@@ -98,37 +104,9 @@ train_dataset = train_dataset.prefetch(tf.data.experimental.AUTOTUNE)
 
 val_dataset = None
 for pair in pairs:
-  def encode_pt_en(lang1, lang2):
-    lang1 = [langs[pair.a]] + [langs[pair.b]] + tokenizer.encode(
-      lang1.numpy()) + [tokenizer.vocab_size]
+  val_examples_pt_en = pair.val_examples.map(get_tf_encode_pt_en(pair))
 
-    lang2 = [langs[pair.b]] + tokenizer.encode(
-      lang2.numpy()) + [tokenizer.vocab_size]
-
-    return lang1, lang2
-  def tf_encode_pt_en(pt, en):
-    result_pt, result_en = tf.py_function(encode_pt_en, [pt, en], [tf.int64, tf.int64])
-    result_pt.set_shape([None])
-    result_en.set_shape([None])
-
-    return result_pt, result_en
-  val_examples_pt_en = pair.val_examples.map(tf_encode_pt_en)
-
-  def encode_en_pt(lang1, lang2):
-    lang1 = [langs[pair.b]] + [langs[pair.a]] + tokenizer.encode(
-      lang1.numpy()) + [tokenizer.vocab_size]
-
-    lang2 =  [langs[pair.a]] + tokenizer.encode(
-      lang2.numpy()) + [tokenizer.vocab_size]
-
-    return lang1, lang2
-  def tf_encode_en_pt(pt, en):
-    result_en, result_pt = tf.py_function(encode_en_pt, [en, pt], [tf.int64, tf.int64])
-    result_pt.set_shape([None])
-    result_en.set_shape([None])
-
-    return result_en, result_pt
-  val_examples_en_pt = pair.val_examples.map(tf_encode_en_pt)
+  val_examples_en_pt = pair.val_examples.map(get_tf_encode_en_pt(pair))
 
   if val_dataset:
       val_dataset = val_dataset.concatenate(train_dataset_pt_en)
