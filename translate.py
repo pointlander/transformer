@@ -18,6 +18,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import itertools
 import os.path as path
+import sys
 
 from transformer import *
 
@@ -50,5 +51,10 @@ if ckpt_manager.latest_checkpoint:
   ckpt.restore(ckpt_manager.latest_checkpoint).expect_partial()
   print ('Latest checkpoint restored!!')
 
-translate(langs['pt'], langs['en'], "este é um problema que temos que resolver.", transformer, tokenizer)
-translate(langs['en'], langs['pt'], "we need to solve the problem.", transformer, tokenizer)
+if sys.argv[1] == 'help':
+  print(langs)
+elif sys.argv[1] == 'demo':
+  translate(langs['pt'], langs['en'], "este é um problema que temos que resolver.", transformer, tokenizer)
+  translate(langs['en'], langs['pt'], "we need to solve the problem.", transformer, tokenizer)
+else:
+  translate(langs[sys.argv[1]], langs[sys.argv[2]], sys.argv[3], transformer, tokenizer)
