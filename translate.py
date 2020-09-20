@@ -25,10 +25,10 @@ from transformer import *
 tokenizer = getTokenizer(None)
 langs = languages(tokenizer.vocab_size)
 
-num_layers = 8
-d_model = 256
-dff = 1024
-num_heads = 16
+num_layers = 4
+d_model = 512
+dff = 2048
+num_heads = 8
 
 input_vocab_size = tokenizer.vocab_size + 1 + len(langs)
 target_vocab_size = tokenizer.vocab_size + 1 + len(langs)

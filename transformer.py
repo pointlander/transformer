@@ -55,7 +55,7 @@ def getTokenizer(pairs):
         iterables.append((a.numpy() for a, b in pair.train_examples))
         iterables.append((b.numpy() for a, b in pair.train_examples))
       tokenizer = tfds.features.text.SubwordTextEncoder.build_from_corpus(
-        itertools.chain.from_iterable(iterables), target_vocab_size=2**14)
+        itertools.chain.from_iterable(iterables), target_vocab_size=2**13)
       tokenizer.save_to_file('tokenizer')
     return tokenizer
 
